@@ -1,0 +1,67 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Device Dashboard</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+
+<body>
+    <div class="container">
+        <!-- 左上部分：设备图片和信息 -->
+        <div class="device-monitor">
+            {% for device in devices %}
+            <div class="device-box" data-id="{{ device.id }}">
+                <h3>{{ device.name }}</h3>
+                <button onclick="openSettings('{{ device.id }}')">设置</button>
+                <p>状态: {{ device.status }}</p>
+                <p>温度: {{ device.temperature }}°C</p>
+                <img src="{{ device.image_url }}?t={{ timestamp }}" alt="{{ device.name }}" width="100%" height="auto">
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 右上部分：设备统计模块 -->
+        <div class="static-info">
+            <h3>设备统计</h3>
+            <p>红灯个数：5</p>
+            <p>绿灯个数：3</p>
+            <p>四轮车个数：2</p>
+            <p>电动车个数：4</p>
+            <p>摩托车个数：7</p>
+        </div>
+
+        <!-- 左下部分：设备设置模块 -->
+        <div class="settings-panel">
+            <h3>设备设置</h3>
+            <label>曝光度: <input type="range" min="0" max="100" id="exposure" oninput="updateValue('exposure')" /><span
+                    id="exposureValue">50</span></label>
+            <label>对比度: <input type="range" min="0" max="100" id="contrast" oninput="updateValue('contrast')" /><span
+                    id="contrastValue">50</span></label>
+            <label>放大倍数: <input type="range" min="1" max="10" id="zoom" oninput="updateValue('zoom')" /><span
+                    id="zoomValue">5</span></label>
+        </div>
+
+        <!-- 右下部分：视频录制控制模块 -->
+        <div class="video-recorder">
+            <h3>录制视频</h3>
+            <label>单次录制时长:
+                <input type="range" min="1" max="120" step="1" id="record_duration"
+                    oninput="updateValue('record_duration')" />
+                <span id="recordDurationValue">60</span> 分钟
+            </label>
+            <label>录制总数量: <input type="number" min="1" max="50" id="total_record_count"
+                    oninput="updateTotalDuration()" /></label>
+            <p>总录制时长: <span id="total_duration">0 min</span></p>
+            <label>地点信息: <input type="text" id="location"></label>
+            <button id="start_record" disabled>开始录制</button>
+            <button id="stop_record">紧急停止</button>
+        </div>
+    </div>
+</body>
+<script src="{% static 'js/script.js' %}"></script>
+
+</html>
