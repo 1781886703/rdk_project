@@ -11,57 +11,88 @@
 
 <body>
     <div class="container">
-        <!-- 左上部分：设备图片和信息 -->
-        <div class="device-monitor">
+        <!-- 左上部分：4个设备图片和信息 -->
+        <div class="device-display">
             {% for device in devices %}
             <div class="device-box" data-id="{{ device.id }}">
-                <h3>{{ device.name }}</h3>
-                <button onclick="openSettings('{{ device.id }}')">设置</button>
-                <p>状态: {{ device.status }}</p>
-                <p>温度: {{ device.temperature }}°C</p>
-                <img src="{{ device.image_url }}?t={{ timestamp }}" alt="{{ device.name }}" width="100%" height="auto">
+                <p>{{ device.name }} 运行状态: {{ device.status }} 温度: {{ device.temperature }}°C</p>
+                <img src="{{ device.image_url }}?t={{ timestamp }}" alt="设备图片">
+                <button onclick="selectDevice('{{ device.id }}')">设置 {{ device.id }}</button>
             </div>
             {% endfor %}
         </div>
-
-        <!-- 右上部分：设备统计模块 -->
-        <div class="static-info">
-            <h3>设备统计</h3>
-            <p>红灯个数：5</p>
-            <p>绿灯个数：3</p>
-            <p>四轮车个数：2</p>
-            <p>电动车个数：4</p>
-            <p>摩托车个数：7</p>
-        </div>
-
-        <!-- 左下部分：设备设置模块 -->
+        
+        <!-- 右上部分：动态设备设置区域 -->
         <div class="settings-panel">
-            <h3>设备设置</h3>
-            <label>曝光度: <input type="range" min="0" max="100" id="exposure" oninput="updateValue('exposure')" /><span
-                    id="exposureValue">50</span></label>
-            <label>对比度: <input type="range" min="0" max="100" id="contrast" oninput="updateValue('contrast')" /><span
-                    id="contrastValue">50</span></label>
-            <label>放大倍数: <input type="range" min="1" max="10" id="zoom" oninput="updateValue('zoom')" /><span
-                    id="zoomValue">5</span></label>
+            <h3>设置 {{ selected_device.name }}</h3>
+            <label>曝光度:
+                <input type="range" min="0" max="100" id="exposure" value="{{ selected_device.settings.warmth }}"
+                    oninput="updateSliderValue(this, 'exposureValue')" />
+                <span id="exposureValue">{{ selected_device.settings.warmth }}</span>
+            </label>
+            <label>亮度:
+                <input type="range" min="0" max="100" id="brightness" value="{{ selected_device.settings.brightness }}"
+                    oninput="updateSliderValue(this, 'brightnessValue')" />
+                <span id="brightnessValue">{{ selected_device.settings.brightness }}</span>
+            </label>
+            <label>对比度:
+                <input type="range" min="0" max="100" id="contrast" value="{{ selected_device.settings.contrast }}"
+                    oninput="updateSliderValue(this, 'contrastValue')" />
+                <span id="contrastValue">{{ selected_device.settings.contrast }}</span>
+            </label>
         </div>
 
-        <!-- 右下部分：视频录制控制模块 -->
-        <div class="video-recorder">
+        <!-- 左下部分：设备统计信息 -->
+        <div class="statistics-panel">
+            <h3>统计信息</h3>
+            <div class="flex">
+                <div id="left_info">
+                    <p>红灯个数：{{ statistics.redLights }}</p>
+                    <p>绿灯个数：{{ statistics.greenLights }}</p>
+                </div>
+                <div id="right_info">
+                    <p>电动车数量：{{ statistics.electricCars }}</p>
+                    <p>汽车车流量：{{ statistics.cars }}</p>
+                    <p>总车流量：{{ statistics.totalTraffic }}</p>
+                </div>
+            </div>
+        <p>开始录制时间：{{ statistics.startTime }} 预计结束时间：{{ statistics.endTime }}</p>
+        </div>
+
+        <!-- 右下部分：录制控制区域 -->
+        <div class="record-control">
             <h3>录制视频</h3>
-            <label>单次录制时长:
-                <input type="range" min="1" max="120" step="1" id="record_duration"
-                    oninput="updateValue('record_duration')" />
-                <span id="recordDurationValue">60</span> 分钟
-            </label>
-            <label>录制总数量: <input type="number" min="1" max="50" id="total_record_count"
-                    oninput="updateTotalDuration()" /></label>
-            <p>总录制时长: <span id="total_duration">0 min</span></p>
-            <label>地点信息: <input type="text" id="location"></label>
-            <button id="start_record" disabled>开始录制</button>
-            <button id="stop_record">紧急停止</button>
+            <p>已录制时长：{{ recording_status.recordedTime }} 秒</p>
+            <p>单个时长：<input type="range" min="1" max="120" value="{{ recording_settings.segmentTime }}" /></p>
+            <p>总时长：<input type="range" min="1" max="300" value="{{ recording_settings.totalTime }}" /></p>
+            <p>地点：<input type="text" value="{{ recording_settings.location }}" /></p>
+            <button onclick="startRecording()">开始</button>
+            <button onclick="pauseRecording()">暂停</button>
+            <button onclick="stopRecording()">结束</button>
         </div>
     </div>
+
+    <script>
+        function selectDevice(deviceId) {
+                // 使用AJAX请求动态更新selected_device数据
+                fetch(`/select_device/${deviceId}/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        document.querySelector(".settings-panel h3").textContent = `设置 ${data.name}`;
+                        document.getElementById("exposure").value = data.settings.warmth;
+                        document.getElementById("exposureValue").textContent = data.settings.warmth;
+                        document.getElementById("brightness").value = data.settings.brightness;
+                        document.getElementById("brightnessValue").textContent = data.settings.brightness;
+                        document.getElementById("contrast").value = data.settings.contrast;
+                        document.getElementById("contrastValue").textContent = data.settings.contrast;
+                    })
+                    .catch(error => console.error("Error fetching device data:", error));
+            }
+
+            function updateSliderValue(slider, elementId) {
+                document.getElementById(elementId).textContent = slider.value;
+            }
+    </script>
 </body>
-<script src="{% static 'js/script.js' %}"></script>
 
 </html>

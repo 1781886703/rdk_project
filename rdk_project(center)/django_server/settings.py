@@ -63,9 +63,13 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
+# settings.py
+import os
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, "static"),
+    os.path.join(BASE_DIR, "static"),              # 项目目录的 static 文件夹
+    os.path.join(BASE_DIR, "..", "static"),        # 上一级目录的 static 文件夹
 ]
+
 
 # 媒体文件配置
 MEDIA_URL = '/media/'
