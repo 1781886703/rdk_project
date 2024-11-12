@@ -67,7 +67,7 @@ STATIC_URL = '/static/'
 import os
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),              # 项目目录的 static 文件夹
-    os.path.join(BASE_DIR, "..", "static"),        # 上一级目录的 static 文件夹
+    # os.path.join(BASE_DIR, "..", "static"),        # 上一级目录的 static 文件夹
 ]
 
 

@@ -1,0 +1,11 @@
+[ WARN:0@17.951] global cap_v4l.cpp:1136 tryIoctl VIDEOIO(V4L2:/dev/video0): select() timeout.
+Starting video recording...
+Frame saved as /home/sunrise/Documents/rdk_project(client)/client/images/latest_image.jpg
+Frame saved as /home/sunrise/Documents/rdk_project(client)/client/images/latest_image.jpg
+Frame saved as /home/sunrise/Documents/rdk_project(client)/client/images/latest_image.jpg
+Frame saved as /home/sunrise/Documents/rdk_project(client)/client/images/latest_image.jpg
+Frame saved as /home/sunrise/Documents/rdk_project(client)/client/images/latest_image.jpg
+Frame saved as /home/sunrise/Documents/rdk_project(client)/client/images/latest_image.jpg
+Frame saved as /home/sunrise/Documents/rdk_project(client)/client/images/latest_image.jpg
+Error: Failed to capture video frame.
+视频录制完成，已存储到: /mnt/usb/videos/video_20241112_235332.avi
