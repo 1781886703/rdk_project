@@ -22,7 +22,6 @@ def upload_image1(request):
         return JsonResponse({'status': 'success'}, status=200)
     return JsonResponse({'status': 'failed'}, status=400)
 
-
 def upload_image2(request):
     if request.method == 'POST' and request.FILES.get('image'):
         image = request.FILES['image']
@@ -85,6 +84,7 @@ def display_page(request):
 
     recording_status = {
         "recordedTime": 158,
+        
     }
 
     recording_settings = {
@@ -102,14 +102,6 @@ def display_page(request):
         "timestamp": timezone.now().timestamp()
     })
 
-# 假设这是一个内存字典用于保存设备设置，实际生产中应使用数据库
-device_settings = {
-    1: {"warmth": 50, "brightness": 60, "contrast": 70},
-    2: {"warmth": 40, "brightness": 50, "contrast": 60},
-    3: {"warmth": 30, "brightness": 40, "contrast": 50},
-    4: {"warmth": 20, "brightness": 30, "contrast": 40},
-}
-
 def select_device(request, device_id):
     # 查找设备信息并返回
     devices = {
@@ -125,34 +117,6 @@ def select_device(request, device_id):
     else:
         return JsonResponse({"error": "Device not found"}, status=404)
     
-def control_recording(request):
-    if request.method == 'POST':
-        data = json.loads(request.body)
-        command = data.get('command')
-        segment_time = data.get('segmentTime')
-        total_time = data.get('totalTime')
-        location = data.get('location')
-        
-        # 将请求发送到客户端 RDK X5 上的 Flask 服务器
-        client_url = 'http://192.168.3.35:8001/handle_recording_command/'
-        response = requests.post(client_url, json={
-            'command': command,
-            'segment_time': segment_time,
-            'total_time': total_time,
-            'location': location
-        })
-        
-        print(f"[INFO] Sent command {command} to {client_url} with response {response.status_code}")
-        
-        return JsonResponse({'status': response.status_code})
-    return JsonResponse({'status': 'failed'}, status=400)
-
-# 获取当前录制状态
-def get_recording_status(request):
-    # 从数据库获取唯一的 RecordingStatus 记录（假设只有一条记录）
-    status, created = RecordingStatus.objects.get_or_create(id=1)  # 使用 id=1 确保唯一记录
-    return JsonResponse({'isRecording': status.is_recording, 'recordedTime': status.recorded_time})
-
 #更新录制状态，比如在开始录制时设为“录制中”，在停止录制时更新状态和时长
 @csrf_exempt
 def update_recording_status(request):
@@ -166,12 +130,30 @@ def update_recording_status(request):
 
         if command == 'start':
             status.is_recording = True
-            status.recorded_time = recorded_time  # 重置录制时长为0
+            status.recorded_time = 0  # 重置录制时长
+            status.start_time = timezone.now()  # 设置开始时间为当前时间
         elif command == 'stop':
             status.is_recording = False
             status.recorded_time = recorded_time  # 更新已录制时长
+            status.start_time = None  # 停止时清空开始时间
 
         status.save()
-        return JsonResponse({'status': 'updated', 'isRecording': status.is_recording, 'recordedTime': status.recorded_time})
+        return JsonResponse({
+            'status': 'updated', 
+            'isRecording': status.is_recording, 
+            'recordedTime': status.recorded_time, 
+            'statusCode': status.status_code,
+            'startTime': status.start_time
+        })
     
     return JsonResponse({'status': 'failed'}, status=400)
+
+# 获取当前录制状态
+def get_recording_status(request):
+    status, created = RecordingStatus.objects.get_or_create(id=1)
+    return JsonResponse({
+        'isRecording': status.is_recording, 
+        'recordedTime': status.recorded_time,
+        'startTime': status.start_time,
+    })
+

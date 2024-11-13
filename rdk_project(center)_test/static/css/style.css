@@ -8,11 +8,12 @@ body {
 .container {
     display: grid;
     grid-template-areas:
-        "device-display settings-panel"
-        "statistics-panel record-control";
-    grid-template-columns: 2fr 1fr;
+        "device-display device-display settings-panel"
+        "device-display device-display record-control"
+        "statistics-panel statistics-panel record-control";
+    /* grid-template-columns: 1fr 1fr 1fr; */
     grid-gap: 20px;
-    padding: 20px;
+    padding: 15px;
     max-width: 1200px;
     margin: 0 auto;
 }
@@ -21,27 +22,27 @@ body {
     grid-area: device-display;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+    gap: 10px;
 }
 
 .device-box {
     background: #ffffff;
     border-radius: 8px;
-    padding: 5px;
+    padding: 12px 4px 4px 0px;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     text-align: center;
-    display: flex;
+    /* display: flex;
     flex-direction: column;
     justify-content: space-between;
-    align-items: center;
+    align-items: center; */
     height: 300px;
 }
 
 .device-box img {
-    width: 95%;
+    width: 92%;
     margin: auto;
     height: auto;
-    max-height: 200px;
+    max-height: 220px;
     object-fit: cover;
 }
 
@@ -67,22 +68,35 @@ body {
     align-items: center;
 }
 
-/* #left_info,#right_info {
+.settings-panel{
+    grid-area: settings-panel;
+}
 
-} */
+.statistics-panel{
+    grid-area: statistics-panel;
+}
+
+.record-control{
+    grid-area: record-control;
+}
+
 button {
-    background: #4CAF50;
+    background: #5bb1fc;
     color: white;
     border: none;
     border-radius: 5px;
     padding: 8px 12px;
     cursor: pointer;
     transition: background 0.3s ease;
-    margin-top: 10px;
+    margin-top: 5px;
 }
 
 button:hover {
-    background: #45a049;
+    background: #5bb1fc;
+    color: #ffffff;
+    border: #52aeff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    transition: background 0.3s ease;
 }
 
 @media (max-width: 768px) {

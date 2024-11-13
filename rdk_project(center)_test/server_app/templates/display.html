@@ -12,16 +12,20 @@
 <body>
     <div class="container">
         <!-- 左上部分：4个设备图片和信息 -->
+
         <div class="device-display">
             {% for device in devices %}
             <div class="device-box" data-id="{{ device.id }}">
-                <p>{{ device.name }} 运行状态: {{ device.status }} 温度: {{ device.temperature }}°C</p>
-                <img src="{{ device.image_url }}?t={{ timestamp }}" alt="设备图片">
+                <strong class="device-name" style="display: inline-block;font-size: 23px;">{{ device.name }} </strong>
+                <div class="status" style="display: inline-block; margin: 6px 27px;">运行状态: {{
+                    device.status_code|yesno:"运行中,未运行" }} </div>
+                <div class="temperature" style="display: inline-block;">温度: {{ device.temperature}}°C</div>
+                <img src="{{ device.image_url }}" alt="设备图片"> <!-- 此处不带时间戳，时间戳在JS中处理 -->
                 <button onclick="selectDevice('{{ device.id }}')">设置 {{ device.id }}</button>
             </div>
             {% endfor %}
-        </div>
 
+        </div>
         <!-- 右上部分：动态设备设置区域 -->
         <div class="settings-panel">
             <h3>设置 {{ selected_device.name }}</h3>
@@ -41,7 +45,24 @@
                 <span id="contrastValue">{{ selected_device.settings.contrast }}</span>
             </label>
         </div>
-
+        <!-- 右下部分：录制控制区域 -->
+        <div class="record-control">
+            <h3>录制视频</h3>
+            <p>开始录制时间：<span id="startTime">{{ recording_status.startTime }}</span></p>
+            <p>已录制时长：<span id="recordedTime">{{ recording_status.recordedTime }}</span> 秒</p>
+            <label>单个时长：<input type="range" min="1" max="120" id="segmentTime"
+                    value="{{ recording_settings.segmentTime }}"
+                    oninput="updateSliderDisplay('segmentTime', 'segmentTimeValue')" /> <span id="segmentTimeValue">{{
+                    recording_settings.segmentTime }}</span> 秒</label>
+            <p></p>
+            <label>总时长：<input type="range" min="1" max="300" id="totalTime" value="{{ recording_settings.totalTime  }}"
+                    oninput="updateSliderDisplay('totalTime', 'totalTimeValue')" /> <span id="totalTimeValue">{{
+                    recording_settings.totalTime }}</span> 秒</label>
+            <p>地点：<input type="text" id="location" value="{{ recording_settings.location }}" /></p>
+            <button id="startButton" onclick="sendCommand('start')">开始</button>
+            <button id="stopButton" onclick="sendCommand('stop')" disabled
+                style="background-color: red;color: aliceblue;">结束</button>
+        </div>
         <!-- 左下部分：设备统计信息 -->
         <div class="statistics-panel">
             <h3>统计信息</h3>
@@ -59,30 +80,18 @@
             <p>开始录制时间：{{ statistics.startTime }} 预计结束时间：{{ statistics.endTime }}</p>
         </div>
 
-        <!-- 右下部分：录制控制区域 -->
-        <div class="record-control">
-            <h3>录制视频</h3>
-            <p>已录制时长：<span id="recordedTime">{{ recording_status.recordedTime }}</span> 秒</p>
-            <label>单个时长：<input type="range" min="1" max="120" id="segmentTime"
-                    value="{{ recording_settings.segmentTime }}"
-                    oninput="updateSliderDisplay('segmentTime', 'segmentTimeValue')" /> <span id="segmentTimeValue">{{
-                    recording_settings.segmentTime }}</span> 秒</label>
-            <label>总时长：<input type="range" min="1" max="300" id="totalTime" value="{{ recording_settings.totalTime }}"
-                    oninput="updateSliderDisplay('totalTime', 'totalTimeValue')" /> <span id="totalTimeValue">{{
-                    recording_settings.totalTime }}</span> 秒</label>
-            <p>地点：<input type="text" id="location" value="{{ recording_settings.location }}" /></p>
-            <button id="startButton" onclick="sendCommand('start')">开始</button>
-            <button id="stopButton" onclick="sendCommand('stop')" disabled>结束</button>
-        </div>
+
+
+
+
     </div>
 
     <script>
         function selectDevice(deviceId) {
-            // 使用AJAX请求动态更新selected_device数据
             fetch(`/select_device/${deviceId}/`)
                 .then(response => response.json())
                 .then(data => {
-                    document.querySelector(".settings-panel h3").textContent = `设置 ${data.name}`;
+                    document.querySelector(".settings-panel h3").textContent = `设置${data.name}`;
                     document.getElementById("exposure").value = data.settings.warmth;
                     document.getElementById("exposureValue").textContent = data.settings.warmth;
                     document.getElementById("brightness").value = data.settings.brightness;
@@ -104,47 +113,117 @@
         }
 
         function sendCommand(command) {
-                const segmentTime = document.getElementById('segmentTime').value;
-                const totalTime = document.getElementById('totalTime').value;
-                const location = document.getElementById('location').value;
+            console.log("[DEBUG] Command button clicked:", command);
 
-                console.log("Sending command:", command, "Segment Time:", segmentTime, "Total Time:", totalTime); // 调试输出
+            fetch('http://192.168.3.35:8001/handle_recording_command/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    command: command,
+                    segment_time: parseInt(document.getElementById('segmentTime').value),
+                    total_time: parseInt(document.getElementById('totalTime').value),
+                    location: document.getElementById('location').value
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("[DEBUG] Response from server:", data);
+                    if (data.status === "started" && command === 'start') {
+                        console.log("Recording started successfully.");
+                        document.getElementById('startButton').disabled = true;
+                        document.getElementById('stopButton').disabled = false;
+                        hideButtons();  // 禁用按钮时隐藏
+                    } else if (data.status === "stopped" && command === 'stop') {
+                        console.log("Recording stopped successfully.");
+                        document.getElementById('startButton').disabled = false;
+                        document.getElementById('stopButton').disabled = true;
+                        hideButtons();  // 禁用按钮时隐藏
+                    } else {
+                        console.log("[ERROR] Unexpected response:", data);
+                    }
+                })
+                .catch(error => {
+                    console.error("[ERROR] Fetch error:", error);
+                });
+        }
 
-                fetch('http://192.168.3.35:8001/handle_recording_command/', {  // 确保路径和 Flask 路由一致
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({ command, segment_time: parseInt(segmentTime), total_time: parseInt(totalTime), location })
-                }).then(response => response.json())
-                    .then(data => console.log(data.status))
-                    .catch(error => console.error("Error sending command:", error));
+        function hideButtons() {
+            const startButton = document.getElementById('startButton');
+            const stopButton = document.getElementById('stopButton');
+            // 如果开始按钮被禁用，则隐藏开始按钮
+            if (startButton.disabled) {
+                startButton.style.display = 'none';
+            } else {
+                startButton.style.display = 'inline';
             }
+            // 如果结束按钮被禁用，则隐藏结束按钮
+            if (stopButton.disabled) {
+                stopButton.style.display = 'none';
+            } else {
+                stopButton.style.display = 'inline';
+            }
+        }
 
-
-        // 页面加载时获取录制状态
         window.onload = function () {
             fetch('/get_recording_status/')
                 .then(response => response.json())
                 .then(data => {
-                    const { isRecording, recordedTime } = data;
+                    const { isRecording, recordedTime, statusCode } = data;
                     document.getElementById("recordedTime").textContent = recordedTime;
+                    console.log("Received data:", data); // 打印接收到的数据，查看 startTime
+                    document.getElementById("startTime").textContent = data.startTime ? new Date(data.startTime).toLocaleString() : "无";
                     document.getElementById('startButton').disabled = isRecording;
                     document.getElementById('stopButton').disabled = !isRecording;
+                    hideButtons();  // 页面加载时根据按钮状态隐藏按钮
+
+                    const statusText = statusCode === 1 ? "运行中" : "未运行";
+                    document.querySelector(".device-box[data-id='1'] p").textContent = `设备1 运行状态: ${statusText} 温度: ... °C`;
                 });
         };
 
+        //刷新后，先刷新一下滑条的值
         window.onload = function () {
-                fetch('/get_recording_status/')
-                    .then(response => response.json())
-                    .then(data => {
-                        const { isRecording, recordedTime } = data;
-                        document.getElementById("recordedTime").textContent = recordedTime;
-                        document.getElementById('startButton').disabled = isRecording;
-                        document.getElementById('stopButton').disabled = !isRecording;
+            updateSliderDisplay('segmentTime', 'segmentTimeValue');
+            updateSliderDisplay('totalTime', 'totalTimeValue');
+        };
+
+        // 刷新设备信息和图片
+        setInterval(() => {
+            console.log("[DEBUG] 开始刷新设备信息和图片...");
+            fetch('/get_recording_status/')
+                .then(response => response.json())
+                .then(data => {
+                    const { isRecording, recordedTime, statusCode } = data;
+                    console.log("[DEBUG] 接收到的录制状态数据：", data);
+                    document.getElementById("recordedTime").textContent = recordedTime;
+                    document.getElementById('startButton').disabled = isRecording;
+                    document.getElementById('stopButton').disabled = !isRecording;
+                    hideButtons();  // 每次检查后更新按钮的显示状态
+                    // 更新设备状态显示
+                    const statusText = isRecording ? "运行中" : "未运行";
+                    const statusColor = isRecording ? "#2e7d32" : "#888888";
+                    document.querySelector(".device-box[data-id='1']  .status").textContent = `运行状态: ${statusText}`;
+                    document.querySelector(".device-box[data-id='1'] .status").style.color = statusColor;
+
+                    // 刷新每个设备的图片
+                    document.querySelectorAll(".device-box").forEach((deviceBox, index) => {
+                        const img = deviceBox.querySelector("img");
+                        const originalSrc = img.getAttribute("src").split("?")[0]; // 去掉旧的时间戳部分
+                        const newSrc = `${originalSrc}?t=${new Date().getTime()}`; // 加上新的时间戳
+                        img.setAttribute("src", newSrc);
+                        // console.log(`[DEBUG] 设备${index + 1}的图片src更新为: ${newSrc}`);
                     });
-            };
+                })
+                .catch(error => {
+                    console.error("[ERROR] 获取录制状态时出错：", error);
+                });
+
+            console.log("[DEBUG] 刷新设备信息和图片的周期完成");
+        }, 1000);
+
+
     </script>
 </body>
 
