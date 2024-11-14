@@ -6,8 +6,14 @@ import time
 import os
 import requests
 
+#192.168.3.35(该板子的罗曦号)(1)
+
 app = Flask(__name__)
 CORS(app)  # 启用 CORS
+
+# 不同rdk设备只需要修改这两个
+device_id = '1'  #设备号
+ip_port = '192.168.3.37:8001'  #确保这是主控板的实际 IP 地址和端口
 
 # 全局变量
 recording = False
@@ -17,9 +23,10 @@ video_dir_base = "/mnt/usb/videos"
 image_folder = "/home/sunrise/Documents/rdk_project(client)/client/images"
 image_path = os.path.join(image_folder, "latest_image.jpg")
 os.makedirs(image_folder, exist_ok=True)
-server_url = "http://192.168.3.37:8001/upload_image1/"  # 确保这是主控板的实际 IP 地址和端口
+server_url = f"http://{ip_port}/upload_image{device_id}/"  # 用于发送图片给主控板
 current_video_dir = ""  # 当前录制的文件夹路径
 send_image_thread = None  # 用于存储图像发送线程
+django_url = f"http://{ip_port}/update_recording_status{device_id}/"  # 用于发送运行状态给主控板
 
 # 图像发送线程函数
 def send_image():
@@ -33,7 +40,8 @@ def send_image():
                 try:
                     response = requests.post(server_url, files=files, data=data)
                     if response.status_code == 200:
-                        print(f"[INFO] Image {image_path} sent successfully with status_code={status_code}.")
+                        pass
+                        # print(f"[INFO] Image {image_path} sent successfully with status_code={status_code}.")
                     else:
                         print(f"[ERROR] Failed to send image. Status code: {response.status_code}")
                 except requests.exceptions.RequestException as e:
@@ -111,7 +119,8 @@ def start_recording(segment_time, total_time, location):
 # 录制状态更新至 Django 服务器
 def update_django_recording_status(command, recorded_time=0):
     """更新录制状态到 Django 服务器"""
-    django_url = "http://192.168.3.37:8001/update_recording_status/"
+    global ip_port,django_url
+    # django_url = f"http://{ip_port}/update_recording_status/"
     data = {
         'command': command,
         'recordedTime': recorded_time

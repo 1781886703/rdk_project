@@ -9,54 +9,37 @@ import json
 import requests
 from .models import DeviceSetting
 from .models import RecordingStatus
+from datetime import timedelta
+from .models import Recording
+from datetime import datetime
+# 上传图像的通用函数
+@csrf_exempt
+def upload_image2(request):
+    return upload_image_generic(request, device_id=2)
 @csrf_exempt
 def upload_image1(request):
-    if request.method == 'POST' and request.FILES.get('image'):
-        image = request.FILES['image']
-        file_path = 'latest_image1.jpg'
-        
-        if default_storage.exists(file_path):
-            default_storage.delete(file_path)
-        path = default_storage.save(file_path, ContentFile(image.read()))
+    return upload_image_generic(request, device_id=1)
 
-        return JsonResponse({'status': 'success'}, status=200)
-    return JsonResponse({'status': 'failed'}, status=400)
-
-def upload_image2(request):
-    if request.method == 'POST' and request.FILES.get('image'):
-        image = request.FILES['image']
-        file_path = 'latest_image2.jpg'
-        
-        if default_storage.exists(file_path):
-            default_storage.delete(file_path)
-        path = default_storage.save(file_path, ContentFile(image.read()))
-
-        return JsonResponse({'status': 'success'}, status=200)
-    return JsonResponse({'status': 'failed'}, status=400)
-
+@csrf_exempt
 def upload_image3(request):
-    if request.method == 'POST' and request.FILES.get('image'):
-        image = request.FILES['image']
-        file_path = 'latest_image3.jpg'
-        
-        if default_storage.exists(file_path):
-            default_storage.delete(file_path)
-        path = default_storage.save(file_path, ContentFile(image.read()))
+    return upload_image_generic(request, device_id=3)
 
-        return JsonResponse({'status': 'success'}, status=200)
-    return JsonResponse({'status': 'failed'}, status=400)
-
+@csrf_exempt
 def upload_image4(request):
+    return upload_image_generic(request, device_id=4)
+
+def upload_image_generic(request, device_id):
     if request.method == 'POST' and request.FILES.get('image'):
         image = request.FILES['image']
-        file_path = 'latest_image4.jpg'
+        file_path = f'latest_image{device_id}.jpg'
         
         if default_storage.exists(file_path):
             default_storage.delete(file_path)
         path = default_storage.save(file_path, ContentFile(image.read()))
 
-        return JsonResponse({'status': 'success'}, status=200)
-    return JsonResponse({'status': 'failed'}, status=400)
+        return JsonResponse({'status': 'success', 'device_id': device_id}, status=200)
+    return JsonResponse({'status': 'failed', 'device_id': device_id}, status=400)
+
 def display_page(request):
     # 模拟设备信息和设置
     devices = [
@@ -118,42 +101,82 @@ def select_device(request, device_id):
         return JsonResponse({"error": "Device not found"}, status=404)
     
 #更新录制状态，比如在开始录制时设为“录制中”，在停止录制时更新状态和时长
+# 新增更新录制状态函数，每个函数对应一个设备
 @csrf_exempt
-def update_recording_status(request):
+def update_recording_status1(request):
+    return update_recording_status_generic(request, device_id=1)
+
+@csrf_exempt
+def update_recording_status2(request):
+    return update_recording_status_generic(request, device_id=2)
+
+@csrf_exempt
+def update_recording_status3(request):
+    return update_recording_status_generic(request, device_id=3)
+
+@csrf_exempt
+def update_recording_status4(request):
+    return update_recording_status_generic(request, device_id=4)
+
+@csrf_exempt
+def update_recording_status_generic(request, device_id):
     if request.method == 'POST':
         data = json.loads(request.body)
         command = data.get('command')
-        recorded_time = data.get('recordedTime', 0)
+        total_time = data.get('total_time', 0)  # 录制总时长，用于计算预计结束时间
 
-        # 获取或创建唯一的 RecordingStatus 记录
-        status, created = RecordingStatus.objects.get_or_create(id=1)
+        # 获取或创建对应设备的 RecordingStatus 记录
+        status, created = RecordingStatus.objects.get_or_create(device_id=device_id)
 
         if command == 'start':
             status.is_recording = True
-            status.recorded_time = 0  # 重置录制时长
-            status.start_time = timezone.now()  # 设置开始时间为当前时间
+            status.start_time = timezone.now()  # 记录开始时间
+            status.total_time = total_time  # 将总时长存储
         elif command == 'stop':
             status.is_recording = False
-            status.recorded_time = recorded_time  # 更新已录制时长
             status.start_time = None  # 停止时清空开始时间
+            status.total_time = 0  # 清除总时长
 
         status.save()
         return JsonResponse({
-            'status': 'updated', 
-            'isRecording': status.is_recording, 
-            'recordedTime': status.recorded_time, 
-            'statusCode': status.status_code,
-            'startTime': status.start_time
+            'status': 'updated',
+            'isRecording': status.is_recording,
         })
-    
-    return JsonResponse({'status': 'failed'}, status=400)
 
-# 获取当前录制状态
-def get_recording_status(request):
-    status, created = RecordingStatus.objects.get_or_create(id=1)
+    return JsonResponse({'status': 'failed'}, status=400)
+# 新增获取录制状态函数，每个函数对应一个设备
+def get_recording_status1(request):
+    return get_recording_status_generic(request, device_id=1)
+
+def get_recording_status2(request):
+    return get_recording_status_generic(request, device_id=2)
+
+def get_recording_status3(request):
+    return get_recording_status_generic(request, device_id=3)
+
+def get_recording_status4(request):
+    return get_recording_status_generic(request, device_id=4)
+
+def get_recording_status_generic(request, device_id):
+    status, created = RecordingStatus.objects.get_or_create(device_id=device_id)
     return JsonResponse({
         'isRecording': status.is_recording, 
-        'recordedTime': status.recorded_time,
-        'startTime': status.start_time,
     })
 
+#视图来处理保存录制信息的逻辑
+@csrf_exempt
+def save_the_record_time(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        start_time = data.get('start_time')
+        total_time = data.get('total_time')
+        
+        # Save to database
+        recording = Recording(start_time=datetime.fromisoformat(start_time), total_time=int(total_time))
+        recording.save()
+        return JsonResponse({'status': 'success'})
+
+def get_the_record_time(request):
+    # Retrieve the latest recording (you can change logic if needed)
+    latest_recording = Recording.objects.latest('start_time')
+    return JsonResponse({'start_time': latest_recording.start_time.isoformat(),'total_time': latest_recording.total_time})
