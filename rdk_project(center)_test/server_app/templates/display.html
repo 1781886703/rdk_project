@@ -29,7 +29,7 @@
             <h3>设置 {{ selected_device.name }}</h3>
             <label>曝光度:
                 <input type="range" min="0" max="100" id="exposure" value="{{ selected_device.settings.warmth }}"
-                    oninput="(this, 'exposureValue')" />
+                    oninput="updateSliderValue(this, 'exposureValue')" />
                 <span id="exposureValue">{{ selected_device.settings.warmth }}</span>
             </label>
             <label>亮度:
@@ -48,20 +48,34 @@
         <div class="record-control">
             <h3>录制视频</h3>
             <p id="startTimeLabel">开始录制时间：<span id="startTime">无</span></p>
-            <p id="recordedTimeContainer">已录制时长：<span id="recordedTime">0</span> 秒</p>
-            <p id="endTimeContainer">预计结束时间：<span id="endTime">无</span></p>
-            <label>单个时长：<input type="range" min="1" max="120" id="segmentTime"
-                    value="{{ recording_settings.segmentTime }}"
-                    oninput="updateSliderDisplay('segmentTime', 'segmentTimeValue')" /> <span id="segmentTimeValue">{{
-                    recording_settings.segmentTime }}</span> 秒</label>
+            <p id="recordedTimeContainer" style="display: none;">已录制时长：<span id="recordedTime">0</span> 秒</p>
+            <p id="endTimeContainer" style="display: none;">预计结束时间：<span id="endTime">无</span></p>
+
+            <!-- 单个时长滑动条 -->
+            <label>单个时长：
+                <input type="range" min="0" max="4" step="1" id="segmentTime"
+                    value="{% if recording_settings.segmentTimeIndex is defined %}{{ recording_settings.segmentTimeIndex }}{% else %}0{% endif %}"
+                    oninput="updateSegmentTimeDisplay(this.value)" />
+                <span id="segmentTimeValue">5 秒</span>
+            </label>
             <p></p>
-            <label>总时长：<input type="range" min="1" max="300" id="totalTime" value="{{ recording_settings.totalTime }}"
-                    oninput="updateSliderDisplay('totalTime', 'totalTimeValue')" /> <span id="totalTimeValue">{{
-                    recording_settings.totalTime }}</span> 秒</label>
+
+            <!-- 总时长滑动条 -->
+            <label>总时长：
+                <input type="range" min="0" max="5" step="1" id="totalTime"
+                    value="{% if recording_settings.totalTimeIndex is defined %}{{ recording_settings.totalTimeIndex }}{% else %}0{% endif %}"
+                    oninput="updateTotalTimeDisplay(this.value)" />
+                <span id="totalTimeValue">20 秒</span>
+            </label>
+            <p></p>
+
+            <!-- 地点输入框 -->
             <p>地点：<input type="text" id="location" value="{{ recording_settings.location }}" /></p>
+
+            <!-- 控制按钮 -->
             <button id="startButton" onclick="sendCommand('start');handleRecording('start');">开始</button>
             <button id="stopButton" onclick="sendCommand('stop');handleRecording('stop');" disabled
-                style="background-color: red;color: aliceblue;">结束</button>
+                style="background-color: red; color: aliceblue;">结束</button>
         </div>
 
         <div class="statistics-panel">
@@ -82,20 +96,54 @@
     </div>
 
     <script>
-        //全局变量
+        // 全局变量
 
         // 定义全局变量来存储每个客户端的 IP 地址（在send_command函数中使用），只需要修改这些 IP 地址即可使用多个设备。
         const CLIENT_1_IP = 'http://192.168.3.35:8001';
         const CLIENT_2_IP = 'http://192.168.3.34:8001';
         const CLIENT_3_IP = 'http://192.168.3.39:8001';
-        const CLIENT_4_IP = 'http://192.168.3.40:8001';
+        const CLIENT_4_IP = 'http://192.168.3.38:8001';
 
         const deviceIps = [CLIENT_1_IP, CLIENT_2_IP, CLIENT_3_IP, CLIENT_4_IP];  // 将所有设备的 IP 存储在一个数组中（在send_command函数中使用）
 
-        let startTime = null; //初始化全局变量，用于记录录制开始时间
+        let startTime = null; // 初始化全局变量，用于记录录制开始时间
 
-        let intervalId; //声明一个用于存储定时器的返回值，用于后续清除。（用于startRecording函数中来定时刷新录制时长）
+        let intervalId = null; // 声明一个用于存储定时器的返回值，用于后续清除。（用于startRecording函数中来定时刷新录制时长）
 
+        // 定义总时长和单个时长的档位选项（以秒为单位）
+        const totalTimeOptions = [20, 60, 300, 1800, 3600, 7200]; // 20s, 1m, 5m, 30m, 1h, 2h
+        const segmentTimeOptions = [5, 30, 60, 300, 600]; // 5s, 30s, 1m, 5m, 10m
+
+        // 更新总时长显示
+        function updateTotalTimeDisplay(index) {
+            const totalTime = totalTimeOptions[index];
+            const displayText = formatTime(totalTime);
+            document.getElementById('totalTimeValue').textContent = displayText;
+        }
+
+        // 更新单个时长显示
+        function updateSegmentTimeDisplay(index) {
+            const segmentTime = segmentTimeOptions[index];
+            const displayText = formatTime(segmentTime);
+            document.getElementById('segmentTimeValue').textContent = displayText;
+        }
+
+        // 格式化时间显示
+        function formatTime(seconds) {
+            if (seconds < 60) {
+                return `${seconds} 秒`;
+            } else if (seconds < 3600) {
+                const mins = Math.floor(seconds / 60);
+                const secs = seconds % 60;
+                return secs === 0 ? `${mins} 分钟` : `${mins} 分钟 ${secs} 秒`;
+            } else {
+                const hours = Math.floor(seconds / 3600);
+                const mins = Math.floor((seconds % 3600) / 60);
+                return mins === 0 ? `${hours} 小时` : `${hours} 小时 ${mins} 分钟`;
+            }
+        }
+
+        // 选择设备并更新设置面板
         function selectDevice(deviceId) {
             fetch(`/select_device/${deviceId}/`)
                 .then(response => response.json())
@@ -111,28 +159,22 @@
                 .catch(error => console.error("Error fetching device data:", error));
         }
 
-        //用于显示右上部分设备参数滑动条对应的值
+        // 用于显示滑动条对应的值
         function updateSliderValue(slider, elementId) {
             document.getElementById(elementId).textContent = slider.value;
         }
 
-        //用于显示右下部分视频录制参数滑动条对应的值
-        function updateSliderDisplay(sliderId, displayId) {
-            const slider = document.getElementById(sliderId);
-            const display = document.getElementById(displayId);
-            display.textContent = slider.value;
-        }
-
-
-
         // 发送指令的函数
         function sendCommand(command) {
-            const totalTime = parseInt(document.getElementById('totalTime').value);
+            const totalTimeIndex = parseInt(document.getElementById('totalTime').value);
+            const totalTime = totalTimeOptions[totalTimeIndex];
+            const segmentTimeIndex = parseInt(document.getElementById('segmentTime').value);
+            const segmentTime = segmentTimeOptions[segmentTimeIndex];
             const location = document.getElementById('location').value;
 
             // 创建一个包含多个 fetch 请求的 Promise 数组
             const requests = deviceIps.map(ip => {
-                return fetch(`${ip}/handle_recording_command/`, {
+                return fetch(`${ip}/handle_recording_command/`, { // 修正了模板字符串的语法
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -140,6 +182,7 @@
                     body: JSON.stringify({
                         command: command,
                         total_time: totalTime,
+                        segment_time: segmentTime, // 添加单个时长
                         location: location
                     })
                 })
@@ -162,17 +205,24 @@
                 });
         }
 
-
-        //使用于开始和结束按键的逻辑处理
+        // 使用于开始和结束按键的逻辑处理
         function handleRecording(mode) {
-            totalTime = document.getElementById('totalTime').value;
-            startTime = new Date().toISOString();
+            const totalTimeIndex = parseInt(document.getElementById('totalTime').value);
+            const totalTime = totalTimeOptions[totalTimeIndex];
+            const segmentTimeIndex = parseInt(document.getElementById('segmentTime').value);
+            const segmentTime = segmentTimeOptions[segmentTimeIndex];
+            const location = document.getElementById('location').value;
+            const currentTime = new Date();
 
             if (mode === "start") {
-                // Start recording
+                // 记录开始时间
+                startTime = currentTime.toISOString();
+
+                // 开始录制
                 startRecording(startTime, totalTime);
-                console.log("startRecording", startTime, totalTime)
-                // Send data to backend via AJAX (or fetch)
+                console.log("startRecording", startTime, totalTime);
+
+                // 发送录制开始数据到后端
                 fetch('/save_the_record_time/', {
                     method: 'POST',
                     headers: {
@@ -180,11 +230,14 @@
                     },
                     body: JSON.stringify({
                         start_time: startTime,
-                        total_time: totalTime
+                        total_time: totalTime,
+                        segment_time: segmentTime,
+                        location: location
                     })
-                });
+                })
+                    .catch(error => console.error("Error saving record time:", error));
             } else if (mode === "stop") {
-                // Get the last recorded start time from the backend
+                // 获取最后一次录制开始时间
                 fetch('/get_the_record_time/', {
                     method: 'GET',
                 })
@@ -193,49 +246,51 @@
                         console.log(data);
                         const lastRecordingTime = data.start_time;
                         stopRecording(lastRecordingTime);
-                    });
+                    })
+                    .catch(error => console.error("Error fetching last record time:", error));
             }
         }
 
         function startRecording(startTime, totalTime) {
-            //更新开始录制的时间以及录制时长和预计结束模块（前端），
-
+            // 更新开始录制的时间以及录制时长和预计结束模块（前端）
             document.getElementById("startTimeLabel").innerHTML = `开始录制时间：<span id="startTime">无</span>`;
             document.getElementById("startTime").textContent = new Date(startTime).toLocaleString();
             document.getElementById("recordedTimeContainer").style.display = "block";
             document.getElementById("endTimeContainer").style.display = "block";
 
-            //（通过传入的开始时间和总时长）计算预计结束时间
+            // 计算预计结束时间
             const endTime = new Date(new Date(startTime).getTime() + totalTime * 1000);
             document.getElementById("endTime").textContent = endTime.toLocaleString();
 
-            //每秒更新录制时长（通过目前的时间减去传入函数的开始时间）
+            // 每秒更新录制时长
             intervalId = setInterval(() => {
                 const now = new Date();
                 const elapsed = Math.floor((now - new Date(startTime)) / 1000);
                 document.getElementById("recordedTime").textContent = elapsed;
             }, 1000);
-            //开始按钮不可用，结束按钮可用
+
+            // 控制按钮状态
             document.getElementById('startButton').disabled = true;
             document.getElementById('stopButton').disabled = false;
         }
 
         function stopRecording(lastRecordingTime) {
-            //将传入函数的值作为“上一次录制开始的时间”，将录制时长和预计结束时间隐藏
+            // 将录制时长和预计结束时间重置
             document.getElementById("startTimeLabel").innerHTML = `开始录制时间：<span id="startTime">无</span>`;
             document.getElementById("startTime").textContent = new Date(lastRecordingTime).toLocaleString();
             document.getElementById("recordedTimeContainer").innerHTML = `已录制时长：<span id="recordedTime">0</span> 秒`;
             document.getElementById("endTimeContainer").innerHTML = `预计结束时间：<span id="endTime">无</span>`;
 
-            //因为不需要更新录制时长了，所以清除计时器，
+            // 清除计时器
             clearInterval(intervalId);
+            intervalId = null;
 
-            //恢复按钮
+            // 恢复按钮状态
             document.getElementById('startButton').disabled = false;
             document.getElementById('stopButton').disabled = true;
         }
 
-        //开始与结束键只能存在一个在页面上（前端）
+        // 开始与结束键只能存在一个在页面上（前端）
         function hideButtons() {
             const startButton = document.getElementById('startButton');
             const stopButton = document.getElementById('stopButton');
@@ -251,16 +306,24 @@
             }
         }
 
-
+        // 页面加载时初始化滑动条显示和获取设备状态
         window.onload = function () {
-            // 新增：页面加载时从后端获取最新录制时间
+            // 初始化总时长显示
+            const totalTimeIndex = parseInt(document.getElementById('totalTime').value);
+            updateTotalTimeDisplay(totalTimeIndex);
+
+            // 初始化单个时长显示
+            const segmentTimeIndex = parseInt(document.getElementById('segmentTime').value);
+            updateSegmentTimeDisplay(segmentTimeIndex);
+
+            // 从后端获取最新录制时间
             fetch('/get_the_record_time/', {
                 method: 'GET',
             })
                 .then(response => response.json())
                 .then(data => {
                     console.log('window.onload:', data)
-                    if (data) {
+                    if (data && data.start_time) {
                         startTime = data.start_time;
                         const totalTime = data.total_time;
                         const elapsed = Math.floor((new Date() - new Date(startTime)) / 1000);
@@ -274,100 +337,130 @@
                         // 更新页面上的开始录制时间
                         document.getElementById("startTimeLabel").innerHTML = `开始录制时间：<span id="startTime">无</span>`;
                         setTimeout(function () {
-                            console.log("0.5秒后执行的代码");
+                            console.log("0.1秒后执行的代码");
                             document.getElementById("startTime").textContent = new Date(startTime).toLocaleString();
                         }, 100); // 100毫秒 = 0.1秒
-
 
                         // 显示录制控制区域的时长部分
                         document.getElementById("recordedTimeContainer").style.display = "block";
                         document.getElementById("endTimeContainer").style.display = "block";
-                    }
-                });
 
+                        // 启动定时器以更新录制时长
+                        intervalId = setInterval(() => {
+                            const now = new Date();
+                            const elapsed = Math.floor((now - new Date(startTime)) / 1000);
+                            document.getElementById("recordedTime").textContent = elapsed;
+                        }, 1000);
+                    }
+                })
+                .catch(error => console.error("Error fetching record time:", error));
 
             // 页面加载时获取所有设备状态
-            for (let i = 1; i <= 4; i++) {
+            let flag = false
+            for (let i = 1; i <= deviceIps.length; i++) {
                 fetch(`/get_recording_status${i}/`)
                     .then(response => response.json())
                     .then(data => {
+
                         const { isRecording, recordedTime, statusCode } = data;
-                        console.log("Received data:", data); // 打印接收到的数据，查看 startTime
-                        document.getElementById("startTime").textContent = data.startTime ? new Date(data.startTime).toLocaleString() : "无";
-                        document.getElementById('startButton').disabled = isRecording;
-                        document.getElementById('stopButton').disabled = !isRecording;
-                        hideButtons();  // 页面加载时根据按钮状态隐藏按钮
+                        console.log(`Received data for device ${i}:`, data);
                         const statusElem = document.querySelector(`.device-box[data-id='${i}'] .status`);
                         if (statusElem) {
-                            const statusText = statusCode === 1 ? "运行中" : "未运行";
+                            const statusText = isRecording ? "运行中" : "未运行";
                             const statusColor = isRecording ? "#2e7d32" : "#888888";
                             statusElem.style.color = statusColor;
                             statusElem.textContent = `运行状态: ${statusText}`;
                         } else {
                             console.warn(`设备 ${i} 的 HTML 元素未找到`);
                         }
-                    })
-                    .catch(error => console.error(`Error fetching status for device ${i}:`, error));
-            }
 
-            // 刷新滑条的值
-            updateSliderDisplay('segmentTime', 'segmentTimeValue');
-            updateSliderDisplay('totalTime', 'totalTimeValue');
-        };
-
-
-        setInterval(() => {
-            // 周期性刷新所有设备状态和图片
-            // console.log("[DEBUG] 开始刷新设备信息和图片...");
-            for (let i = 1; i <= 4; i++) {
-                fetch(`/get_recording_status${i}/`)
-                    .then(response => response.json())
-                    .then(data => {
-                        //刷新页面之后（即 通过点击开始而触发定时器已经被清空后，才触发该部分代码）
-                        //当正在录制时，更新已录制时长
-                        const { isRecording, recordedTime, statusCode } = data;
-                        if (intervalId == null && isRecording) {
-                            const now = new Date();
-                            // console.log('now:', now)
-                            const elapsed = Math.floor((now - new Date(startTime)) / 1000);
-                            // console.log("elapsed:", elapsed)
-                            document.getElementById("recordedTime").textContent = elapsed;
-                        }
-
-
-                        //默认设备1一定运行，只拿设备1的数据来使用
-                        if (i == 1) {
-                            console.log("[DEBUG] 接收到的录制状态数据：", data);
+                        // 控制录制按钮状态（仅以设备1为例）
+                        console.log("flag1:", flag);
+                        if (i === 1) {
+                            //     console.log("isRecording:", isRecording);
+                            // if (isRecording == true) {
+                            //      flag = true;}
+                            // console.log("flag2:", flag);
                             document.getElementById('startButton').disabled = isRecording;
                             document.getElementById('stopButton').disabled = !isRecording;
-                            hideButtons();  // 每次检查后更新按钮的显示状态
+                            hideButtons();
 
                             if (!isRecording) {
                                 document.getElementById("startTimeLabel").innerHTML = `开始录制时间：<span id="startTime">无</span>`;
                                 document.getElementById("recordedTimeContainer").innerHTML = `已录制时长：<span id="recordedTime">0</span> 秒`;
                                 document.getElementById("endTimeContainer").innerHTML = `预计结束时间：<span id="endTime">无</span>`;
                                 clearInterval(intervalId);
+                                intervalId = null;
                             }
                         }
+                    })
+                    .catch(error => console.error(`Error fetching status for device ${i}:`, error));
+            }
 
+            // 刷新滑条的值
+            updateTotalTimeDisplay(document.getElementById('totalTime').value);
+            updateSegmentTimeDisplay(document.getElementById('segmentTime').value);
+        };
+
+        // 周期性刷新所有设备状态和图片
+        setInterval(() => {
+            for (let i = 1; i <= deviceIps.length; i++) {
+                fetch(`/get_recording_status${i}/`)
+                    .then(response => response.json())
+                    .then(data => {
+                        const { isRecording, recordedTime, statusCode } = data;
+                        console.log(`Received data for device ${i}:`, data);
+
+                        // 更新设备状态文本
                         const statusElem = document.getElementById(`status${i}`);
                         if (statusElem) {
-                            // 更新设备状态文本
                             const statusText = isRecording ? "运行中" : "未运行";
                             const statusColor = isRecording ? "#2e7d32" : "#888888";
                             statusElem.textContent = `运行状态: ${statusText}`;
                             statusElem.style.color = statusColor;
-                            // 刷新设备图片
-                            const img = document.getElementById(`image${i}`);
-                            const originalSrc = img.getAttribute("src").split("?")[0];
-                            img.setAttribute("src", `${originalSrc}?t=${new Date().getTime()}`);
                         } else {
                             console.warn(`设备 ${i} 的 HTML 元素未找到`);
+                        }
+
+                        // 刷新设备图片
+                        const img = document.getElementById(`image${i}`);
+                        if (img) {
+                            const originalSrc = img.getAttribute("src").split("?")[0];
+                            img.setAttribute("src", `${originalSrc}?t=${new Date().getTime()}`);
+                        }
+
+                        // 控制录制按钮状态（仅以设备1为例）
+                        if (i === 1) {
+                            document.getElementById('startButton').disabled = isRecording;
+                            document.getElementById('stopButton').disabled = !isRecording;
+                            hideButtons();
+
+                            if (isRecording && intervalId === null) {
+                                // 如果正在录制且没有计时器，启动计时器
+                                startTime = data.start_time;
+                                intervalId = setInterval(() => {
+                                    const now = new Date();
+                                    const elapsed = Math.floor((now - new Date(startTime)) / 1000);
+                                    document.getElementById("recordedTime").textContent = elapsed;
+                                }, 1000);
+                            }
+
+                            if (!isRecording && intervalId !== null) {
+                                // 如果不在录制且有计时器，清除计时器
+                                clearInterval(intervalId);
+                                intervalId = null;
+
+                                // 重置录制时间显示
+                                document.getElementById("startTimeLabel").innerHTML = `开始录制时间：<span id="startTime">无</span>`;
+                                document.getElementById("recordedTimeContainer").innerHTML = `已录制时长：<span id="recordedTime">0</span> 秒`;
+                                document.getElementById("endTimeContainer").innerHTML = `预计结束时间：<span id="endTime">无</span>`;
+                            }
                         }
                     })
                     .catch(error => console.error(`Error refreshing data for device ${i}:`, error));
             }
-        }, 1000);
+        }, 3000); // 每3秒刷新一次
+
     </script>
 </body>
 
